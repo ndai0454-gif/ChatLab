@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="ChatLab.Client/ChatLab.Client.csproj" />
+  <Project Path="ChatLab.Shared/ChatLab.Shared.csproj" />
   <Project Path="ChatLab/ChatLab.csproj" />
   <Project Path="ExchangeRate.Business/ExchangeRate.Business.csproj" />
   <Project Path="ExchangeRate.Data/ExchangeRate.Data.csproj" />
