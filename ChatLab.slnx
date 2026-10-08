@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="ChatLab/ChatLab.csproj" />
+  <Project Path="ExchangeRate.Business/ExchangeRate.Business.csproj" />
+  <Project Path="ExchangeRate.Data/ExchangeRate.Data.csproj" />
+  <Project Path="ExchangeRate.Desktop/ExchangeRate.Desktop.csproj" />
+  <Project Path="ExchangeRate.Web/ExchangeRate.Web.csproj" />
+  <Project Path="ExchangeRate.Worker/ExchangeRate.Worker.csproj" />
+</Solution>

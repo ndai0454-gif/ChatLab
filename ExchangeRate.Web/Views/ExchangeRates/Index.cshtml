@@ -1,0 +1,62 @@
+@model ExchangeRate.Web.Models.ExchangeRateListViewModel
+
+@{
+    ViewData["Title"] = "Danh sách tỷ giá";
+}
+
+<h1>Danh sách tỷ giá</h1>
+
+<form method="get" class="row g-3 align-items-end mb-4">
+    <div class="col-auto">
+        <label class="form-label" for="date">Ngày</label>
+        <input type="date" id="date" name="date" class="form-control"
+               value="@(Model.FilterDate?.ToString("yyyy-MM-dd"))" />
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="currency">Loại tiền</label>
+        <select id="currency" name="currency" class="form-select">
+            <option value="">Tất cả</option>
+            @foreach (var c in Model.AvailableCurrencies)
+            {
+                <option value="@c" selected="@(c == Model.FilterCurrency)">@c</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Lọc</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Xoá bộ lọc</a>
+    </div>
+</form>
+
+<p>
+    <a asp-action="Latest" class="btn btn-sm btn-outline-primary">Tỷ giá mới nhất</a>
+    <a asp-action="Statistics" class="btn btn-sm btn-outline-primary">Thống kê trung bình</a>
+</p>
+
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>Thời gian</th>
+            <th>Loại tiền</th>
+            <th>Mua vào</th>
+            <th>Bán ra</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var rate in Model.Rates)
+        {
+            <tr>
+                <td>@rate.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>@rate.CurrencyCode/@rate.BaseCurrency</td>
+                <td>@rate.BuyRate.ToString("N2")</td>
+                <td>@rate.SellRate.ToString("N2")</td>
+            </tr>
+        }
+        @if (!Model.Rates.Any())
+        {
+            <tr>
+                <td colspan="4" class="text-center text-muted">Không có dữ liệu</td>
+            </tr>
+        }
+    </tbody>
+</table>

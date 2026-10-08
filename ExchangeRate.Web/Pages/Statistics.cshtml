@@ -1,0 +1,49 @@
+@page
+@model StatisticsModel
+@{
+    ViewData["Title"] = "Thống kê trung bình";
+}
+
+<h1>Thống kê tỷ giá trung bình</h1>
+
+<form method="get" class="row g-3 align-items-end mb-4">
+    <div class="col-auto">
+        <label class="form-label" for="date">Ngày</label>
+        <input type="date" id="date" name="date" class="form-control"
+               value="@(Model.Date?.ToString("yyyy-MM-dd"))" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Lọc</button>
+        <a asp-page="/Statistics" class="btn btn-outline-secondary">Xoá bộ lọc</a>
+    </div>
+</form>
+
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>Ngày</th>
+            <th>Loại tiền</th>
+            <th>Mua vào TB</th>
+            <th>Bán ra TB</th>
+            <th>Số mẫu</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var row in Model.Statistics)
+        {
+            <tr>
+                <td>@row.Date.ToString("yyyy-MM-dd")</td>
+                <td>@row.CurrencyCode</td>
+                <td>@row.AverageBuyRate.ToString("N2")</td>
+                <td>@row.AverageSellRate.ToString("N2")</td>
+                <td>@row.SampleCount</td>
+            </tr>
+        }
+        @if (!Model.Statistics.Any())
+        {
+            <tr>
+                <td colspan="5" class="text-center text-muted">Không có dữ liệu</td>
+            </tr>
+        }
+    </tbody>
+</table>
