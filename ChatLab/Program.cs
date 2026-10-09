@@ -1,5 +1,9 @@
 using ChatLab;
 using ChatLab.Data;
+using ChatLab.Hub;
+using ExchangeRate.Business.Services;
+using ExchangeRate.Data;
+using ExchangeRate.Data.Repositories;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +53,12 @@ builder.Services.AddRazorPages(options =>
 });
 builder.Services.AddSingleton<ChatStore>();
 builder.Services.AddScoped<ChatRoom>();
+builder.Services.AddDbContext<ExchangeRateDbContext>(options =>
+    options.UseSqlite($"Data Source={Path.Combine(dataDirectory, "chatlab-users.db")}"));
+builder.Services.AddScoped<IExchangeRateRepository, ExchangeRateRepository>();
+builder.Services.AddScoped<IExchangeRateService, ExchangeRateService>();
+builder.Services.AddSignalR();
+builder.Services.AddHostedService<ExchangeRateGeneratorService>();
 
 var app = builder.Build();
 
@@ -99,6 +109,16 @@ await using (var scope = app.Services.CreateAsyncScope())
         );
         CREATE INDEX IF NOT EXISTS "IX_ChatMessages_ConversationId_Id"
             ON "ChatMessages" ("ConversationId", "Id");
+        CREATE TABLE IF NOT EXISTS "ExchangeRates" (
+            "Id" INTEGER NOT NULL CONSTRAINT "PK_ExchangeRates" PRIMARY KEY AUTOINCREMENT,
+            "CurrencyCode" TEXT NOT NULL,
+            "BaseCurrency" TEXT NOT NULL,
+            "BuyRate" decimal(18,4) NOT NULL,
+            "SellRate" decimal(18,4) NOT NULL,
+            "Timestamp" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_ExchangeRates_Timestamp" ON "ExchangeRates" ("Timestamp");
+        CREATE INDEX IF NOT EXISTS "IX_ExchangeRates_CurrencyCode" ON "ExchangeRates" ("CurrencyCode");
         """);
 }
 
@@ -109,6 +129,20 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapRazorPages();
+app.MapHub<ExchangeRatesHub>(ExchangeRatesHub.Path).RequireAuthorization();
+
+app.MapGet("/api/rates/latest", async (IExchangeRateService service, CancellationToken ct) =>
+    Results.Ok(await service.GetLatestAsync(ct))).RequireAuthorization();
+app.MapGet("/api/rates/history", async (
+    DateTime? date,
+    string? currency,
+    IExchangeRateService service,
+    CancellationToken ct) =>
+    Results.Ok(await service.SearchAsync(date, currency, ct))).RequireAuthorization();
+app.MapGet("/api/rates/statistics", async (DateTime? date, IExchangeRateService service, CancellationToken ct) =>
+    Results.Ok(await service.GetStatisticsAsync(date, ct))).RequireAuthorization();
+app.MapGet("/api/rates/currencies", async (IExchangeRateService service, CancellationToken ct) =>
+    Results.Ok(await service.GetCurrenciesAsync(ct))).RequireAuthorization();
 
 app.Map("/ws", async context =>
 {

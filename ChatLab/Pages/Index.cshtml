@@ -41,6 +41,37 @@
 
             <div id="upload-list" class="upload-list" aria-live="polite"></div>
 
+            <section id="rates-panel" class="rates-panel" aria-label="Exchange rates" hidden>
+                <header class="rates-heading">
+                    <div>
+                        <span class="account-eyebrow">CHATLAB TOOLS</span>
+                        <h2>Exchange rates</h2>
+                        <p>Sample rates against VND. These are generated values, not live financial quotes.</p>
+                    </div>
+                    <span id="rates-live-status" class="rates-live-status">Connecting…</span>
+                </header>
+                <div id="rate-statistics" class="rate-statistics" aria-live="polite"></div>
+                <form id="rate-filter-form" class="rate-filter-form">
+                    <label for="rate-date">Date</label>
+                    <input id="rate-date" type="date" />
+                    <label for="rate-currency">Currency</label>
+                    <select id="rate-currency">
+                        <option value="">All currencies</option>
+                    </select>
+                    <button class="button button-primary" type="submit">Search history</button>
+                    <button id="clear-rate-filter" class="button button-secondary" type="button">Latest</button>
+                </form>
+                <div class="rate-table-wrap">
+                    <table class="rate-table">
+                        <thead>
+                            <tr><th>Currency</th><th>Buy</th><th>Sell</th><th>Updated</th><th></th></tr>
+                        </thead>
+                        <tbody id="rate-table-body"></tbody>
+                    </table>
+                    <p id="rate-empty" class="rate-empty" hidden>No exchange rates found for these filters.</p>
+                </div>
+            </section>
+
             <form id="message-form" class="composer" hidden>
                 @Html.AntiForgeryToken()
                 <input id="file-input" type="file" multiple hidden />
@@ -78,6 +109,7 @@
             <div class="sidebar-actions">
                 <button id="show-chats" class="sidebar-tab active" type="button">Chats</button>
                 <button id="show-people" class="sidebar-tab" type="button">People</button>
+                <button id="show-rates" class="sidebar-tab" type="button">Rates</button>
                 <button id="create-group" class="icon-button create-group-button" type="button" aria-label="Create group" title="Create group">+</button>
             </div>
             <div id="conversation-section" class="directory-section">
@@ -87,6 +119,10 @@
             <div id="people-section" class="directory-section" hidden>
                 <p class="section-label">ALL PEOPLE <span id="user-count" class="user-count">0</span></p>
                 <ul id="user-list" class="user-list"></ul>
+            </div>
+            <div id="rates-section" class="directory-section" hidden>
+                <p class="section-label">LIVE UPDATES</p>
+                <p class="rates-sidebar-note">Sample rates refresh automatically. Select a chat first to share a rate with its members.</p>
             </div>
             <div class="sidebar-note">
                 <span aria-hidden="true">●</span>
@@ -117,4 +153,5 @@
     </form>
 </dialog>
 
+<script src="~/lib/signalr.min.js" asp-append-version="true"></script>
 <script src="~/js/chat.js" asp-append-version="true"></script>

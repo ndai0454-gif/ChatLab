@@ -17,9 +17,16 @@
     const fileInput = document.getElementById("file-input");
     const emojiButton = document.getElementById("emoji-button");
     const emojiPicker = document.getElementById("emoji-picker");
+    const ratesPanel = document.getElementById("rates-panel");
+    const rateTableBody = document.getElementById("rate-table-body");
+    const rateStatistics = document.getElementById("rate-statistics");
+    const ratesLiveStatus = document.getElementById("rates-live-status");
     let activeConversationId = null;
+    let activeView = "chat";
     let conversations = [];
     let directory = [];
+    let visibleRates = [];
+    let showingHistory = false;
 
     function send(command) {
         if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(command));
@@ -55,6 +62,7 @@
             case "history":
                 activeConversationId = message.conversationId;
                 updateActiveConversation();
+                showChatView();
                 messageList.replaceChildren();
                 messageList.hidden = false;
                 emptyState.hidden = true;
@@ -76,6 +84,139 @@
         document.getElementById("composer-hint").hidden = true;
     });
     socket.addEventListener("error", () => setStatus("Connection failed"));
+
+    const rateHub = new signalR.HubConnectionBuilder()
+        .withUrl("/hubs/exchange-rates")
+        .withAutomaticReconnect()
+        .build();
+    rateHub.on("RatesUpdated", rates => {
+        if (activeView === "rates" && !showingHistory) {
+            visibleRates = rates;
+            renderRates(visibleRates);
+            loadRateStatistics(document.getElementById("rate-date").value);
+        }
+        setRatesStatus("Live updates connected", "online");
+    });
+    rateHub.onreconnecting(() => setRatesStatus("Reconnecting…"));
+    rateHub.onreconnected(() => setRatesStatus("Live updates connected", "online"));
+    rateHub.onclose(() => setRatesStatus("Live updates disconnected", "error"));
+    rateHub.start()
+        .then(() => setRatesStatus("Live updates connected", "online"))
+        .catch(error => {
+            console.error("Could not connect to the exchange-rate hub.", error);
+            setRatesStatus("Live updates unavailable", "error");
+        });
+
+    function setRatesStatus(text, state = "") {
+        ratesLiveStatus.textContent = text;
+        ratesLiveStatus.className = `rates-live-status${state ? ` ${state}` : ""}`;
+    }
+
+    async function fetchJson(url) {
+        const response = await fetch(url, { headers: { Accept: "application/json" } });
+        if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+        return response.json();
+    }
+
+    async function loadLatestRates() {
+        setRatesStatus("Loading sample rates…");
+        try {
+            showingHistory = false;
+            visibleRates = await fetchJson("/api/rates/latest");
+            renderRates(visibleRates);
+            await loadRateStatistics(document.getElementById("rate-date").value);
+            const connected = rateHub.state === signalR.HubConnectionState.Connected;
+            setRatesStatus(connected ? "Live updates connected" : "Sample rates loaded", "online");
+        } catch (error) {
+            console.error("Could not load exchange rates.", error);
+            setRatesStatus("Rates could not be loaded", "error");
+        }
+    }
+
+    async function loadRateStatistics(date) {
+        const query = date ? `?date=${encodeURIComponent(date)}` : "";
+        try {
+            const statistics = await fetchJson(`/api/rates/statistics${query}`);
+            rateStatistics.replaceChildren();
+            for (const item of statistics) {
+                const statistic = document.createElement("div");
+                statistic.className = "rate-statistic";
+                const title = document.createElement("span");
+                title.textContent = `${item.currencyCode} average`;
+                const average = document.createElement("strong");
+                average.textContent = `Buy ${formatRate(item.averageBuyRate)} · Sell ${formatRate(item.averageSellRate)}`;
+                statistic.append(title, average);
+                rateStatistics.append(statistic);
+            }
+        } catch (error) {
+            console.error("Could not load exchange-rate statistics.", error);
+            rateStatistics.textContent = "Daily averages are unavailable.";
+        }
+    }
+
+    function formatRate(value) {
+        return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function renderRates(rates) {
+        visibleRates = rates ?? [];
+        rateTableBody.replaceChildren();
+        document.getElementById("rate-empty").hidden = visibleRates.length > 0;
+        for (let index = 0; index < visibleRates.length; index++) {
+            const rate = visibleRates[index];
+            const row = document.createElement("tr");
+            const currencyCell = document.createElement("td");
+            const currency = document.createElement("span");
+            currency.className = "rate-code";
+            currency.textContent = rate.currencyCode;
+            const base = document.createElement("span");
+            base.className = "rate-base";
+            base.textContent = `/ ${rate.baseCurrency}`;
+            currencyCell.append(currency, base);
+            const buy = document.createElement("td");
+            buy.textContent = formatRate(rate.buyRate);
+            const sell = document.createElement("td");
+            sell.textContent = formatRate(rate.sellRate);
+            const updated = document.createElement("td");
+            updated.textContent = new Intl.DateTimeFormat(undefined, {
+                dateStyle: "medium",
+                timeStyle: "short"
+            }).format(new Date(rate.timestamp));
+            const actionCell = document.createElement("td");
+            const share = document.createElement("button");
+            share.type = "button";
+            share.className = "rate-share-button";
+            share.dataset.rateIndex = String(index);
+            share.textContent = "Share to chat";
+            share.disabled = !activeConversationId;
+            share.title = activeConversationId ? "Share this sample rate in the selected chat" : "Select a conversation first";
+            actionCell.append(share);
+            row.append(currencyCell, buy, sell, updated, actionCell);
+            rateTableBody.append(row);
+        }
+    }
+
+    async function loadCurrencies() {
+        try {
+            const currencies = await fetchJson("/api/rates/currencies");
+            const select = document.getElementById("rate-currency");
+            for (const currency of currencies) {
+                const option = document.createElement("option");
+                option.value = currency;
+                option.textContent = currency;
+                select.append(option);
+            }
+        } catch (error) {
+            console.error("Could not load available currencies.", error);
+            setRatesStatus("Currency list unavailable", "error");
+        }
+    }
+
+    const today = new Date();
+    document.getElementById("rate-date").value =
+        `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    loadLatestRates();
+    loadCurrencies();
 
     function initials(name) {
         return (name || "?").trim().split(/\s+/).slice(0, 2)
@@ -140,6 +281,7 @@
         document.getElementById("room-subtitle").textContent =
             conversation?.isGroup ? "Private group conversation" : "Direct message";
         renderConversations(conversations);
+        renderRates(visibleRates);
     }
 
     function renderGroupMembers() {
@@ -210,22 +352,105 @@
         return `${(size / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
     }
 
+    function showChatView() {
+        activeView = "chat";
+        ratesPanel.hidden = true;
+        emptyState.hidden = Boolean(activeConversationId);
+        messageList.hidden = !activeConversationId;
+        messageForm.hidden = !activeConversationId;
+        document.getElementById("composer-hint").hidden = !activeConversationId;
+        document.getElementById("upload-list").hidden = !activeConversationId;
+        document.getElementById("create-group").hidden = false;
+    }
+
     function openPeople() {
+        showChatView();
         document.getElementById("conversation-section").hidden = true;
         document.getElementById("people-section").hidden = false;
+        document.getElementById("rates-section").hidden = true;
         document.getElementById("show-people").classList.add("active");
         document.getElementById("show-chats").classList.remove("active");
+        document.getElementById("show-rates").classList.remove("active");
     }
 
     function openChats() {
+        showChatView();
         document.getElementById("conversation-section").hidden = false;
         document.getElementById("people-section").hidden = true;
+        document.getElementById("rates-section").hidden = true;
         document.getElementById("show-chats").classList.add("active");
         document.getElementById("show-people").classList.remove("active");
+        document.getElementById("show-rates").classList.remove("active");
+    }
+
+    function openRates() {
+        activeView = "rates";
+        document.getElementById("conversation-section").hidden = true;
+        document.getElementById("people-section").hidden = true;
+        document.getElementById("rates-section").hidden = false;
+        document.getElementById("show-chats").classList.remove("active");
+        document.getElementById("show-people").classList.remove("active");
+        document.getElementById("show-rates").classList.add("active");
+        document.getElementById("create-group").hidden = true;
+        document.getElementById("room-title").textContent = "Exchange rates";
+        document.getElementById("room-subtitle").textContent = "Sample buy and sell rates, updated automatically";
+        emptyState.hidden = true;
+        messageList.hidden = true;
+        messageForm.hidden = true;
+        document.getElementById("composer-hint").hidden = true;
+        document.getElementById("upload-list").hidden = true;
+        ratesPanel.hidden = false;
+        loadLatestRates();
     }
 
     document.getElementById("show-chats").addEventListener("click", openChats);
     document.getElementById("show-people").addEventListener("click", openPeople);
+    document.getElementById("show-rates").addEventListener("click", openRates);
+    document.getElementById("rate-filter-form").addEventListener("submit", async event => {
+        event.preventDefault();
+        const date = document.getElementById("rate-date").value;
+        const currency = document.getElementById("rate-currency").value;
+        const query = new URLSearchParams();
+        if (date) query.set("date", date);
+        if (currency) query.set("currency", currency);
+        setRatesStatus("Searching rate history…");
+        try {
+            visibleRates = await fetchJson(`/api/rates/history?${query}`);
+            showingHistory = true;
+            renderRates(visibleRates);
+            await loadRateStatistics(date);
+            setRatesStatus("Rate history loaded", "online");
+        } catch (error) {
+            console.error("Could not search exchange-rate history.", error);
+            setRatesStatus("Rate history could not be loaded", "error");
+        }
+    });
+    document.getElementById("clear-rate-filter").addEventListener("click", () => {
+        const now = new Date();
+        document.getElementById("rate-date").value =
+            `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        document.getElementById("rate-currency").value = "";
+        loadLatestRates();
+    });
+    rateTableBody.addEventListener("click", event => {
+        const button = event.target.closest("[data-rate-index]");
+        if (!button || !activeConversationId) return;
+        const rate = visibleRates[Number(button.dataset.rateIndex)];
+        if (!rate) return;
+        const timestamp = new Intl.DateTimeFormat(undefined, {
+            dateStyle: "medium",
+            timeStyle: "short"
+        }).format(new Date(rate.timestamp));
+        const text = [
+            `Sample exchange rate: 1 ${rate.currencyCode} = ${rate.baseCurrency}`,
+            `Buy: ${formatRate(rate.buyRate)} ${rate.baseCurrency}`,
+            `Sell: ${formatRate(rate.sellRate)} ${rate.baseCurrency}`,
+            `Updated: ${timestamp}`,
+            "Generated sample data; not a live financial quote."
+        ].join("\n");
+        send({ type: "send", conversationId: activeConversationId, text });
+        openChats();
+    });
     userList.addEventListener("click", event => {
         const item = event.target.closest("[data-user-id]");
         if (!item) return;
