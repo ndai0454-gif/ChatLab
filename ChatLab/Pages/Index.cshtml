@@ -13,6 +13,12 @@
             <span id="connection-indicator" class="status-dot"></span>
             <span id="connection-label">Disconnected</span>
         </div>
+        <div class="account-menu">
+            <span class="account-name" data-user-id="@User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value">@User.Identity!.Name</span>
+            <form method="post" asp-page="/Account/Logout">
+                <button class="text-button" type="submit">Sign out</button>
+            </form>
+        </div>
     </header>
 
     <section class="chat-layout" aria-label="Chat room">
@@ -20,29 +26,23 @@
             <header class="conversation-header">
                 <div class="room-avatar" aria-hidden="true">#</div>
                 <div>
-                    <h1>Community chat</h1>
-                    <p id="room-subtitle">Connect to join the conversation</p>
+                    <h1 id="room-title">Select a conversation</h1>
+                    <p id="room-subtitle">Choose a conversation or find someone to message</p>
                 </div>
             </header>
 
-            <div id="join-panel" class="join-panel">
-                <div class="welcome-mark" aria-hidden="true">👋</div>
-                <h2>Welcome to ChatLab</h2>
-                <p>Choose a display name to join the conversation.</p>
-                <form id="join-form" class="join-form">
-                    <label class="visually-hidden" for="name-input">Your name</label>
-                    <input id="name-input" name="name" maxlength="32" autocomplete="nickname"
-                           placeholder="Your name" required />
-                    <button class="button button-primary" type="submit">Join chat</button>
-                </form>
-                <p id="join-error" class="form-error" role="alert"></p>
+            <div id="empty-state" class="empty-state">
+                <div class="welcome-mark" aria-hidden="true">C</div>
+                <h2>Your conversations</h2>
+                <p>Select a conversation, message someone directly, or create a private group.</p>
             </div>
 
-            <div id="message-list" class="message-list" aria-live="polite" aria-label="Messages"></div>
+            <div id="message-list" class="message-list" aria-live="polite" aria-label="Messages" hidden></div>
 
             <div id="upload-list" class="upload-list" aria-live="polite"></div>
 
             <form id="message-form" class="composer" hidden>
+                @Html.AntiForgeryToken()
                 <input id="file-input" type="file" multiple hidden />
                 <button id="attach-button" class="icon-button" type="button" aria-label="Attach files" title="Attach files">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.4 11.1 12.8 19.7a6 6 0 0 1-8.5-8.5l9.2-9.1a4 4 0 0 1 5.6 5.6l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></svg>
@@ -71,18 +71,50 @@
         <aside class="sidebar">
             <div class="sidebar-heading">
                 <div>
-                    <h2>In this room</h2>
-                    <p>People chatting now</p>
+                    <h2>Workspace</h2>
+                    <p>Messages and people</p>
                 </div>
-                <span id="user-count" class="user-count">0</span>
             </div>
-            <ul id="user-list" class="user-list"></ul>
+            <div class="sidebar-actions">
+                <button id="show-chats" class="sidebar-tab active" type="button">Chats</button>
+                <button id="show-people" class="sidebar-tab" type="button">People</button>
+                <button id="create-group" class="icon-button create-group-button" type="button" aria-label="Create group" title="Create group">+</button>
+            </div>
+            <div id="conversation-section" class="directory-section">
+                <p class="section-label">YOUR CHATS</p>
+                <ul id="conversation-list" class="user-list"></ul>
+            </div>
+            <div id="people-section" class="directory-section" hidden>
+                <p class="section-label">ALL PEOPLE <span id="user-count" class="user-count">0</span></p>
+                <ul id="user-list" class="user-list"></ul>
+            </div>
             <div class="sidebar-note">
-                <span aria-hidden="true">🔒</span>
-                <p>Messages and shared files are saved on this server so the conversation can be picked up later.</p>
+                <span aria-hidden="true">●</span>
+                <p>Direct messages and private groups are only visible to their members.</p>
             </div>
         </aside>
     </section>
 </main>
+
+<dialog id="group-dialog" class="group-dialog">
+    <form id="group-form" class="group-form">
+        <div class="dialog-heading">
+            <div>
+                <span class="account-eyebrow">PRIVATE SPACE</span>
+                <h2>Create a group</h2>
+            </div>
+            <button id="close-group" class="icon-button" type="button" aria-label="Close">×</button>
+        </div>
+        <label for="group-name">Group name</label>
+        <input id="group-name" maxlength="60" placeholder="e.g. Product team" required />
+        <label>Select members</label>
+        <div id="group-member-list" class="group-member-list"></div>
+        <p id="group-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+            <button id="cancel-group" class="button button-secondary" type="button">Cancel</button>
+            <button class="button button-primary" type="submit">Create group</button>
+        </div>
+    </form>
+</dialog>
 
 <script src="~/js/chat.js" asp-append-version="true"></script>

@@ -2,6 +2,8 @@ namespace ChatLab;
 
 public sealed class ChatMessage
 {
+    public long Id { get; set; }
+    public string ConversationId { get; set; } = "";
     public string Type { get; set; } = "chat";
     public string Sender { get; set; } = "";
     public string Text { get; set; } = "";
@@ -12,4 +14,4 @@ public sealed class ChatMessage
     public bool IsImage { get; set; }
 }
 
-public sealed record ChatIdentity(string Name, string Token);
+public sealed record ChatIdentity(string Id, string Name);

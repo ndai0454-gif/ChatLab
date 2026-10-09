@@ -1,116 +1,172 @@
 (() => {
-    const joinPanel = document.getElementById("join-panel");
-    const joinForm = document.getElementById("join-form");
-    const joinError = document.getElementById("join-error");
-    const nameInput = document.getElementById("name-input");
+    const account = document.querySelector(".account-name");
+    const currentUserId = account.dataset.userId;
+    const displayName = account.textContent.trim();
+    const socket = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
+    const messageList = document.getElementById("message-list");
     const messageForm = document.getElementById("message-form");
     const messageInput = document.getElementById("message-input");
-    const messageList = document.getElementById("message-list");
+    const conversationList = document.getElementById("conversation-list");
+    const userList = document.getElementById("user-list");
+    const groupDialog = document.getElementById("group-dialog");
+    const groupMemberList = document.getElementById("group-member-list");
+    const groupError = document.getElementById("group-error");
+    const emptyState = document.getElementById("empty-state");
+    const statusLabel = document.getElementById("connection-label");
+    const statusIndicator = document.getElementById("connection-indicator");
     const fileInput = document.getElementById("file-input");
     const emojiButton = document.getElementById("emoji-button");
     const emojiPicker = document.getElementById("emoji-picker");
-    const uploadList = document.getElementById("upload-list");
-    const userList = document.getElementById("user-list");
-    const userCount = document.getElementById("user-count");
-    const statusLabel = document.getElementById("connection-label");
-    const statusIndicator = document.getElementById("connection-indicator");
-    const roomSubtitle = document.getElementById("room-subtitle");
-    const composerHint = document.getElementById("composer-hint");
+    let activeConversationId = null;
+    let conversations = [];
+    let directory = [];
 
-    let socket;
-    let displayName = "";
-    let sessionToken = "";
+    function send(command) {
+        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(command));
+    }
 
-    function setStatus(label, state) {
-        statusLabel.textContent = label;
+    function setStatus(text, state = "") {
+        statusLabel.textContent = text;
         statusIndicator.className = `status-dot${state ? ` ${state}` : ""}`;
     }
 
-    function connect(name) {
-        displayName = name;
-        joinError.textContent = "";
-        setStatus("Connecting…", "connecting");
-        roomSubtitle.textContent = "Connecting to the chat room…";
-        joinForm.querySelector("button").disabled = true;
-        socket = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
+    socket.addEventListener("open", () => send({ type: "join" }));
+    socket.addEventListener("message", event => {
+        let message;
+        try {
+            message = JSON.parse(event.data);
+        } catch {
+            setStatus("Invalid server response");
+            return;
+        }
 
-        socket.addEventListener("open", () => {
-            socket.send(JSON.stringify({ type: "join", name: displayName }));
-        });
-        socket.addEventListener("message", event => {
-            let message;
-            try {
-                message = JSON.parse(event.data);
-            } catch {
-                setStatus("Received an invalid server response", "");
-                return;
-            }
+        switch (message.type) {
+            case "joined":
+                setStatus("Connected", "online");
+                renderUsers(message.users ?? []);
+                renderConversations(message.conversations ?? []);
+                break;
+            case "directory":
+                renderUsers(message.users ?? []);
+                break;
+            case "conversations":
+                renderConversations(message.conversations ?? []);
+                break;
+            case "history":
+                activeConversationId = message.conversationId;
+                updateActiveConversation();
+                messageList.replaceChildren();
+                messageList.hidden = false;
+                emptyState.hidden = true;
+                messageForm.hidden = false;
+                document.getElementById("composer-hint").hidden = false;
+                for (const item of message.messages ?? []) renderMessage(item);
+                break;
+            case "message":
+                if (message.message.conversationId === activeConversationId) renderMessage(message.message);
+                break;
+            case "error":
+                groupError.textContent = message.text;
+                break;
+        }
+    });
+    socket.addEventListener("close", () => {
+        setStatus("Disconnected");
+        messageForm.hidden = true;
+        document.getElementById("composer-hint").hidden = true;
+    });
+    socket.addEventListener("error", () => setStatus("Connection failed"));
 
-            switch (message.type) {
-                case "joined":
-                    sessionToken = message.sessionToken;
-                    joinPanel.hidden = true;
-                    messageForm.hidden = false;
-                    composerHint.hidden = false;
-                    messageInput.focus();
-                    setStatus("Connected", "online");
-                    roomSubtitle.textContent = "Messages are shared with everyone in the room";
-                    for (const item of message.history ?? []) renderMessage(item);
-                    break;
-                case "message":
-                    renderMessage(message.message);
-                    break;
-                case "system":
-                    renderSystemMessage(message.text);
-                    break;
-                case "presence":
-                    renderUsers(message.users ?? []);
-                    break;
-                case "error":
-                    joinError.textContent = message.text;
-                    setStatus("Could not join", "");
-                    joinForm.querySelector("button").disabled = false;
-                    break;
-            }
-        });
-        socket.addEventListener("close", () => {
-            sessionToken = "";
-            messageForm.hidden = true;
-            composerHint.hidden = true;
-            joinPanel.hidden = false;
-            joinForm.querySelector("button").disabled = false;
-            setStatus("Disconnected", "");
-            roomSubtitle.textContent = "Connect to join the conversation";
-        });
-        socket.addEventListener("error", () => {
-            joinError.textContent = "Could not connect to the chat server. Please try again.";
-            setStatus("Connection failed", "");
-        });
+    function initials(name) {
+        return (name || "?").trim().split(/\s+/).slice(0, 2)
+            .map(part => Array.from(part)[0] ?? "").join("").toUpperCase();
     }
 
-    function scrollToLatest() {
-        messageList.scrollTop = messageList.scrollHeight;
+    function renderUsers(users) {
+        directory = users;
+        userList.replaceChildren();
+        for (const user of users) {
+            if (user.id === currentUserId) continue;
+            const item = document.createElement("li");
+            item.className = "directory-item";
+            item.dataset.userId = user.id;
+            item.tabIndex = 0;
+            item.setAttribute("role", "button");
+            const avatar = document.createElement("span");
+            avatar.className = "user-avatar";
+            avatar.textContent = initials(user.name);
+            const name = document.createElement("span");
+            name.className = "directory-name";
+            name.textContent = user.name;
+            const status = document.createElement("span");
+            status.className = `user-online-dot${user.isOnline ? "" : " offline"}`;
+            status.title = user.isOnline ? "Online" : "Offline";
+            item.append(avatar, name, status);
+            userList.append(item);
+        }
+        document.getElementById("user-count").textContent = String(Math.max(0, users.length - 1));
+        renderGroupMembers();
     }
 
-    function renderSystemMessage(text) {
-        const item = document.createElement("div");
-        item.className = "system-message";
-        item.textContent = text;
-        messageList.append(item);
-        scrollToLatest();
+    function renderConversations(items) {
+        conversations = items;
+        conversationList.replaceChildren();
+        for (const conversation of items) {
+            const item = document.createElement("li");
+            item.className = `conversation-item${conversation.id === activeConversationId ? " selected" : ""}`;
+            item.dataset.conversationId = conversation.id;
+            item.tabIndex = 0;
+            item.setAttribute("role", "button");
+            const avatar = document.createElement("span");
+            avatar.className = "user-avatar";
+            avatar.textContent = conversation.isGroup ? "G" : initials(conversation.name);
+            const details = document.createElement("span");
+            details.className = "conversation-details";
+            const title = document.createElement("span");
+            title.className = "directory-name";
+            title.textContent = conversation.name;
+            const preview = document.createElement("span");
+            preview.className = "conversation-preview";
+            preview.textContent = conversation.lastMessage || (conversation.isGroup ? "Private group" : "Start a conversation");
+            details.append(title, preview);
+            item.append(avatar, details);
+            conversationList.append(item);
+        }
+    }
+
+    function updateActiveConversation() {
+        const conversation = conversations.find(item => item.id === activeConversationId);
+        document.getElementById("room-title").textContent = conversation?.name ?? "Conversation";
+        document.getElementById("room-subtitle").textContent =
+            conversation?.isGroup ? "Private group conversation" : "Direct message";
+        renderConversations(conversations);
+    }
+
+    function renderGroupMembers() {
+        groupMemberList.replaceChildren();
+        for (const user of directory) {
+            if (user.id === currentUserId) continue;
+            const label = document.createElement("label");
+            label.className = "group-member";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = user.id;
+            const name = document.createElement("span");
+            name.textContent = user.name;
+            const status = document.createElement("small");
+            status.textContent = user.isOnline ? "Online" : "Offline";
+            label.append(checkbox, name, status);
+            groupMemberList.append(label);
+        }
     }
 
     function renderMessage(message) {
-        if (!message || (message.type !== "chat" && message.type !== "file")) return;
-
+        if (!message || !["chat", "file"].includes(message.type)) return;
         const article = document.createElement("article");
         article.className = `message${message.sender === displayName ? " mine" : ""}`;
-
         const avatar = document.createElement("div");
         avatar.className = "message-avatar";
         avatar.textContent = initials(message.sender);
-        article.append(avatar);
-
         const content = document.createElement("div");
         content.className = "message-content";
         const meta = document.createElement("div");
@@ -120,178 +176,102 @@
         sender.textContent = message.sender;
         const time = document.createElement("time");
         time.className = "message-time";
-        time.textContent = formatTime(message.time);
+        time.textContent = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
+            .format(new Date(message.time));
         meta.append(sender, time);
-        content.append(meta);
-
         const bubble = document.createElement("div");
         bubble.className = "message-bubble";
         if (message.type === "chat") {
             bubble.textContent = message.text;
         } else {
-            renderFile(message, bubble);
+            if (message.isImage) {
+                const image = document.createElement("img");
+                image.className = "shared-image";
+                image.src = `/files/${encodeURIComponent(message.fileId)}`;
+                image.alt = message.fileName;
+                bubble.append(image);
+            }
+            const link = document.createElement("a");
+            link.className = "download-link";
+            link.href = `/files/${encodeURIComponent(message.fileId)}/download`;
+            link.textContent = `${message.fileName} · ${formatSize(message.fileSize)} · Download`;
+            bubble.append(link);
         }
-
-        content.append(bubble);
-        article.append(content);
+        content.append(meta, bubble);
+        article.append(avatar, content);
         messageList.append(article);
-        scrollToLatest();
-    }
-
-    function renderFile(message, container) {
-        if (message.isImage) {
-            const image = document.createElement("img");
-            image.className = "shared-image";
-            image.src = `/files/${encodeURIComponent(message.fileId)}`;
-            image.alt = message.fileName;
-            image.loading = "lazy";
-            container.append(image);
-        }
-
-        const card = document.createElement("div");
-        card.className = "file-card";
-        const icon = document.createElement("span");
-        icon.className = "file-icon";
-        icon.textContent = message.isImage ? "▧" : "↗";
-        const details = document.createElement("div");
-        details.className = "file-details";
-        const fileName = document.createElement("span");
-        fileName.className = "file-name";
-        fileName.textContent = message.fileName;
-        fileName.title = message.fileName;
-        const fileSize = document.createElement("div");
-        fileSize.className = "file-size";
-        fileSize.textContent = formatSize(message.fileSize);
-        const download = document.createElement("a");
-        download.className = "download-link";
-        download.href = `/files/${encodeURIComponent(message.fileId)}/download`;
-        download.textContent = "Download file";
-        details.append(fileName, fileSize, download);
-        card.append(icon, details);
-        container.append(card);
-    }
-
-    function renderUsers(users) {
-        userList.replaceChildren();
-        for (const name of users) {
-            const item = document.createElement("li");
-            const avatar = document.createElement("span");
-            avatar.className = "user-avatar";
-            avatar.textContent = initials(name);
-            const label = document.createElement("span");
-            label.textContent = name;
-            const online = document.createElement("span");
-            online.className = "user-online-dot";
-            online.setAttribute("aria-label", "Online");
-            item.append(avatar, label, online);
-            userList.append(item);
-        }
-        userCount.textContent = String(users.length);
-        roomSubtitle.textContent = `${users.length} ${users.length === 1 ? "person" : "people"} in the room`;
-    }
-
-    function initials(name) {
-        const parts = (name || "?").trim().split(/\s+/).slice(0, 2);
-        return parts.map(part => Array.from(part)[0] ?? "").join("").toUpperCase();
-    }
-
-    function formatTime(value) {
-        const date = new Date(value);
-        return Number.isNaN(date.getTime())
-            ? ""
-            : new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+        messageList.scrollTop = messageList.scrollHeight;
     }
 
     function formatSize(size) {
         if (!size) return "Empty file";
         const units = ["B", "KB", "MB", "GB"];
         const index = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
-        return `${(size / (1024 ** index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+        return `${(size / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
     }
 
-    function uploadFile(file) {
-        const item = document.createElement("div");
-        item.className = "upload-item";
-        const label = document.createElement("span");
-        label.className = "upload-name";
-        label.textContent = `Uploading ${file.name}`;
-        const percentage = document.createElement("span");
-        percentage.textContent = "0%";
-        const progress = document.createElement("progress");
-        progress.className = "upload-progress";
-        progress.max = 100;
-        progress.value = 0;
-        item.append(label, percentage, progress);
-        uploadList.append(item);
-
-        return new Promise(resolve => {
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", `/api/files?name=${encodeURIComponent(file.name)}`);
-            xhr.setRequestHeader("X-Chat-Session", sessionToken);
-            xhr.setRequestHeader("Content-Type", "application/octet-stream");
-            xhr.upload.addEventListener("progress", event => {
-                if (!event.lengthComputable) return;
-                const value = Math.round((event.loaded / event.total) * 100);
-                progress.value = value;
-                percentage.textContent = `${value}%`;
-            });
-            xhr.addEventListener("load", () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    label.textContent = `Shared ${file.name}`;
-                    progress.value = 100;
-                    percentage.textContent = "Done";
-                    resolve();
-                } else {
-                    showUploadError(item, label, file.name, readError(xhr.responseText) || `Upload failed (${xhr.status}).`);
-                    resolve();
-                }
-            });
-            xhr.addEventListener("error", () => {
-                showUploadError(item, label, file.name, "Network error while uploading.");
-                resolve();
-            });
-            xhr.addEventListener("abort", () => {
-                showUploadError(item, label, file.name, "Upload was canceled.");
-                resolve();
-            });
-            xhr.send(file);
-        });
+    function openPeople() {
+        document.getElementById("conversation-section").hidden = true;
+        document.getElementById("people-section").hidden = false;
+        document.getElementById("show-people").classList.add("active");
+        document.getElementById("show-chats").classList.remove("active");
     }
 
-    function readError(body) {
-        try {
-            return JSON.parse(body).error;
-        } catch {
-            return "";
-        }
+    function openChats() {
+        document.getElementById("conversation-section").hidden = false;
+        document.getElementById("people-section").hidden = true;
+        document.getElementById("show-chats").classList.add("active");
+        document.getElementById("show-people").classList.remove("active");
     }
 
-    function showUploadError(item, label, fileName, error) {
-        label.textContent = `Could not upload ${fileName}: ${error}`;
-        label.classList.add("upload-error");
-        item.querySelector("progress")?.remove();
-        item.querySelector("span:last-of-type")?.remove();
-    }
-
-    joinForm.addEventListener("submit", event => {
-        event.preventDefault();
-        const name = nameInput.value.trim();
-        if (!name) {
-            joinError.textContent = "Enter a name to join the chat.";
-            return;
-        }
-        connect(name);
+    document.getElementById("show-chats").addEventListener("click", openChats);
+    document.getElementById("show-people").addEventListener("click", openPeople);
+    userList.addEventListener("click", event => {
+        const item = event.target.closest("[data-user-id]");
+        if (!item) return;
+        send({ type: "openDirect", userId: item.dataset.userId });
+        openChats();
     });
-
+    userList.addEventListener("keydown", event => {
+        if ((event.key === "Enter" || event.key === " ") && event.target.closest("[data-user-id]")) {
+            event.preventDefault();
+            event.target.closest("[data-user-id]").click();
+        }
+    });
+    conversationList.addEventListener("click", event => {
+        const item = event.target.closest("[data-conversation-id]");
+        if (item) send({ type: "select", conversationId: item.dataset.conversationId });
+    });
+    conversationList.addEventListener("keydown", event => {
+        if ((event.key === "Enter" || event.key === " ") && event.target.closest("[data-conversation-id]")) {
+            event.preventDefault();
+            event.target.closest("[data-conversation-id]").click();
+        }
+    });
+    document.getElementById("create-group").addEventListener("click", () => {
+        groupError.textContent = "";
+        groupDialog.showModal();
+    });
+    document.getElementById("close-group").addEventListener("click", () => groupDialog.close());
+    document.getElementById("cancel-group").addEventListener("click", () => groupDialog.close());
+    document.getElementById("group-form").addEventListener("submit", event => {
+        event.preventDefault();
+        send({
+            type: "createGroup",
+            name: document.getElementById("group-name").value,
+            memberIds: Array.from(groupMemberList.querySelectorAll("input:checked"), item => item.value)
+        });
+        groupDialog.close();
+        document.getElementById("group-name").value = "";
+    });
     messageForm.addEventListener("submit", event => {
         event.preventDefault();
         const text = messageInput.value.trim();
-        if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
-        socket.send(JSON.stringify({ type: "send", text }));
+        if (!text || !activeConversationId) return;
+        send({ type: "send", conversationId: activeConversationId, text });
         messageInput.value = "";
         messageInput.style.height = "40px";
     });
-
     messageInput.addEventListener("keydown", event => {
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
@@ -302,7 +282,6 @@
         messageInput.style.height = "40px";
         messageInput.style.height = `${Math.min(messageInput.scrollHeight, 150)}px`;
     });
-
     document.getElementById("attach-button").addEventListener("click", () => fileInput.click());
     emojiButton.addEventListener("click", () => {
         emojiPicker.hidden = !emojiPicker.hidden;
@@ -311,11 +290,7 @@
     emojiPicker.addEventListener("click", event => {
         const button = event.target.closest("button[data-emoji]");
         if (!button) return;
-
-        const start = messageInput.selectionStart;
-        const end = messageInput.selectionEnd;
-        const emoji = button.dataset.emoji;
-        messageInput.setRangeText(emoji, start, end, "end");
+        messageInput.setRangeText(button.dataset.emoji, messageInput.selectionStart, messageInput.selectionEnd, "end");
         messageInput.focus();
         emojiPicker.hidden = true;
         emojiButton.setAttribute("aria-expanded", "false");
@@ -323,6 +298,41 @@
     fileInput.addEventListener("change", async () => {
         const files = Array.from(fileInput.files ?? []);
         fileInput.value = "";
+        if (!activeConversationId) return;
         for (const file of files) await uploadFile(file);
     });
+
+    function uploadFile(file) {
+        const item = document.createElement("div");
+        item.className = "upload-item";
+        const label = document.createElement("span");
+        label.className = "upload-name";
+        label.textContent = `Uploading ${file.name}`;
+        const progress = document.createElement("progress");
+        progress.className = "upload-progress";
+        progress.max = 100;
+        item.append(label, progress);
+        document.getElementById("upload-list").append(item);
+        return new Promise(resolve => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", `/api/files?conversationId=${encodeURIComponent(activeConversationId)}&name=${encodeURIComponent(file.name)}`);
+            xhr.setRequestHeader("X-CSRF-TOKEN", messageForm.querySelector('input[name="__RequestVerificationToken"]').value);
+            xhr.setRequestHeader("Content-Type", "application/octet-stream");
+            xhr.upload.addEventListener("progress", event => {
+                if (event.lengthComputable) progress.value = event.loaded / event.total * 100;
+            });
+            xhr.addEventListener("load", () => {
+                label.textContent = xhr.status >= 200 && xhr.status < 300
+                    ? `Shared ${file.name}`
+                    : `Could not upload ${file.name}`;
+                progress.value = xhr.status >= 200 && xhr.status < 300 ? 100 : 0;
+                resolve();
+            });
+            xhr.addEventListener("error", () => {
+                label.textContent = `Network error uploading ${file.name}`;
+                resolve();
+            });
+            xhr.send(file);
+        });
+    }
 })();

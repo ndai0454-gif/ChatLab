@@ -1,0 +1,33 @@
+@page
+@model ChatLab.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<main class="account-shell">
+    <a class="brand account-brand" href="/" aria-label="ChatLab home">
+        <span class="brand-icon" aria-hidden="true">C</span>
+        <span>Chat<span class="brand-accent">Lab</span></span>
+    </a>
+    <section class="account-card">
+        <span class="account-eyebrow">WELCOME BACK</span>
+        <h1>Sign in to ChatLab</h1>
+        <p class="account-description">Continue the conversation with your team.</p>
+        <form method="post" class="account-form">
+            <div asp-validation-summary="ModelOnly" class="form-error"></div>
+            <label asp-for="Input.UserName">Username</label>
+            <input asp-for="Input.UserName" autocomplete="username" autofocus />
+            <span asp-validation-for="Input.UserName" class="field-error"></span>
+            <label asp-for="Input.Password">Password</label>
+            <input asp-for="Input.Password" autocomplete="current-password" />
+            <span asp-validation-for="Input.Password" class="field-error"></span>
+            <label class="remember-row">
+                <input asp-for="Input.RememberMe" />
+                <span>Keep me signed in</span>
+            </label>
+            <button class="button button-primary account-submit" type="submit">Sign in</button>
+        </form>
+        <p class="account-switch">New to ChatLab? <a asp-page="/Account/Register">Create an account</a></p>
+    </section>
+    <p class="account-footer">Private team communication, made simple.</p>
+</main>

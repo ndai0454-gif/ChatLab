@@ -1,0 +1,33 @@
+@page
+@model ChatLab.Pages.Account.RegisterModel
+@{
+    ViewData["Title"] = "Create account";
+}
+
+<main class="account-shell">
+    <a class="brand account-brand" href="/" aria-label="ChatLab home">
+        <span class="brand-icon" aria-hidden="true">C</span>
+        <span>Chat<span class="brand-accent">Lab</span></span>
+    </a>
+    <section class="account-card">
+        <span class="account-eyebrow">GET STARTED</span>
+        <h1>Create your account</h1>
+        <p class="account-description">Set up a secure account to join your team.</p>
+        <form method="post" class="account-form">
+            <div asp-validation-summary="ModelOnly" class="form-error"></div>
+            <label asp-for="Input.UserName">Username</label>
+            <input asp-for="Input.UserName" autocomplete="username" autofocus />
+            <span asp-validation-for="Input.UserName" class="field-error"></span>
+            <label asp-for="Input.Password">Password</label>
+            <input asp-for="Input.Password" autocomplete="new-password" />
+            <span asp-validation-for="Input.Password" class="field-error"></span>
+            <p class="password-hint">12+ characters with uppercase, lowercase, number, and symbol.</p>
+            <label asp-for="Input.ConfirmPassword">Confirm password</label>
+            <input asp-for="Input.ConfirmPassword" autocomplete="new-password" />
+            <span asp-validation-for="Input.ConfirmPassword" class="field-error"></span>
+            <button class="button button-primary account-submit" type="submit">Create account</button>
+        </form>
+        <p class="account-switch">Already have an account? <a asp-page="/Account/Login">Sign in</a></p>
+    </section>
+    <p class="account-footer">Private team communication, made simple.</p>
+</main>

@@ -111,6 +111,7 @@ public sealed class ChatStore
         Stream source,
         string requestedName,
         string sender,
+        string conversationId,
         long? expectedLength,
         CancellationToken cancellationToken)
     {
@@ -165,6 +166,7 @@ public sealed class ChatStore
             var message = new ChatMessage
             {
                 Type = "file",
+                ConversationId = conversationId,
                 Sender = sender,
                 Time = DateTime.Now,
                 FileId = id,
