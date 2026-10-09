@@ -1,0 +1,88 @@
+@page
+@{
+    ViewData["Title"] = "Chat";
+}
+
+<main class="app-shell">
+    <header class="topbar">
+        <a class="brand" href="/" aria-label="ChatLab home">
+            <span class="brand-icon" aria-hidden="true">C</span>
+            <span>Chat<span class="brand-accent">Lab</span></span>
+        </a>
+        <div class="connection-status">
+            <span id="connection-indicator" class="status-dot"></span>
+            <span id="connection-label">Disconnected</span>
+        </div>
+    </header>
+
+    <section class="chat-layout" aria-label="Chat room">
+        <section class="conversation">
+            <header class="conversation-header">
+                <div class="room-avatar" aria-hidden="true">#</div>
+                <div>
+                    <h1>Community chat</h1>
+                    <p id="room-subtitle">Connect to join the conversation</p>
+                </div>
+            </header>
+
+            <div id="join-panel" class="join-panel">
+                <div class="welcome-mark" aria-hidden="true">👋</div>
+                <h2>Welcome to ChatLab</h2>
+                <p>Choose a display name to join the conversation.</p>
+                <form id="join-form" class="join-form">
+                    <label class="visually-hidden" for="name-input">Your name</label>
+                    <input id="name-input" name="name" maxlength="32" autocomplete="nickname"
+                           placeholder="Your name" required />
+                    <button class="button button-primary" type="submit">Join chat</button>
+                </form>
+                <p id="join-error" class="form-error" role="alert"></p>
+            </div>
+
+            <div id="message-list" class="message-list" aria-live="polite" aria-label="Messages"></div>
+
+            <div id="upload-list" class="upload-list" aria-live="polite"></div>
+
+            <form id="message-form" class="composer" hidden>
+                <input id="file-input" type="file" multiple hidden />
+                <button id="attach-button" class="icon-button" type="button" aria-label="Attach files" title="Attach files">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.4 11.1 12.8 19.7a6 6 0 0 1-8.5-8.5l9.2-9.1a4 4 0 0 1 5.6 5.6l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></svg>
+                </button>
+                <button id="emoji-button" class="icon-button emoji-button" type="button" aria-label="Add emoji" aria-expanded="false" title="Add emoji">☺</button>
+                <div id="emoji-picker" class="emoji-picker" role="group" aria-label="Choose an emoji" hidden>
+                    <button type="button" data-emoji="😀" aria-label="Grinning face">😀</button>
+                    <button type="button" data-emoji="😂" aria-label="Laughing face">😂</button>
+                    <button type="button" data-emoji="😍" aria-label="Heart eyes">😍</button>
+                    <button type="button" data-emoji="😊" aria-label="Smiling face">😊</button>
+                    <button type="button" data-emoji="👍" aria-label="Thumbs up">👍</button>
+                    <button type="button" data-emoji="❤️" aria-label="Red heart">❤️</button>
+                    <button type="button" data-emoji="🎉" aria-label="Party popper">🎉</button>
+                    <button type="button" data-emoji="🙏" aria-label="Folded hands">🙏</button>
+                </div>
+                <label class="visually-hidden" for="message-input">Write a message</label>
+                <textarea id="message-input" rows="1" maxlength="10000" placeholder="Write a message…"></textarea>
+                <button class="button button-primary send-button" type="submit" aria-label="Send message">
+                    <span>Send</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
+                </button>
+            </form>
+            <p id="composer-hint" class="composer-hint" hidden>Enter to send · Shift+Enter for a new line · Files up to 2 GB</p>
+        </section>
+
+        <aside class="sidebar">
+            <div class="sidebar-heading">
+                <div>
+                    <h2>In this room</h2>
+                    <p>People chatting now</p>
+                </div>
+                <span id="user-count" class="user-count">0</span>
+            </div>
+            <ul id="user-list" class="user-list"></ul>
+            <div class="sidebar-note">
+                <span aria-hidden="true">🔒</span>
+                <p>Messages and shared files are saved on this server so the conversation can be picked up later.</p>
+            </div>
+        </aside>
+    </section>
+</main>
+
+<script src="~/js/chat.js" asp-append-version="true"></script>
